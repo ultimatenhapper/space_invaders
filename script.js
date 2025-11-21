@@ -1,3 +1,65 @@
+class Laser {
+  constructor(game) {
+    this.game = game;
+    this.x = 0;
+    this.y = 0;
+    this.height = this.game.height - 50;
+  }
+
+  render(context) {
+    this.x =
+      this.game.player.x + this.game.player.width * 0.5 - this.width * 0.5;
+    context.save();
+    context.fillStyle = "gold";
+    context.fillRect(this.x, this.y, this.width, this.height);
+    context.fillStyle = "white";
+    context.fillRect(
+      this.x + this.width * 0.2,
+      this.y,
+      this.width * 0.6,
+      this.height
+    );
+    context.restore();
+
+    if (this.game.spriteUpdate) {
+      this.game.waves.forEach((wave) => {
+        wave.enemies.forEach((enemy) => {
+          if (this.game.checkCollision(enemy, this)) {
+            enemy.hit(this.damage);
+          }
+        });
+      });
+      this.game.bossArray.forEach((boss) => {
+        if (this.game.checkCollision(boss, this)) {
+          boss.hit(this.damage);
+        }
+      });
+    }
+  }
+}
+
+class SmallLaser extends Laser {
+  constructor(game) {
+    super(game);
+    this.width = 5;
+    this.damage = 0.3;
+  }
+  render(context) {
+    super.render(context);
+  }
+}
+
+class BigLaser extends Laser {
+  constructor(game) {
+    super(game);
+    this.width = 25;
+    this.damage = 0.7;
+  }
+
+  render(context) {
+    super.render(context);
+  }
+}
 class Player {
   constructor(game) {
     this.game = game;
@@ -12,12 +74,20 @@ class Player {
     this.jets_image = document.getElementById("player_jets");
     this.frameX = 0;
     this.jetsFrame = 1;
+    this.smallLaser = new SmallLaser(this.game);
+    this.bigLaser = new BigLaser(this.game);
   }
 
   draw(context) {
     //context.fillRect(this.x, this.y, this.width, this.height);
-    if (this.game.keys.indexOf(" ") > -1) {
+    if ((this.game.keys.indexOf(" ") || this.game.keys.indexOf("1")) > -1) {
       this.frameX = 1;
+    } else if (this.game.keys.indexOf("2") > -1) {
+      this.frameX = 2;
+      this.smallLaser.render(context);
+    } else if (this.game.keys.indexOf("3") > -1) {
+      this.frameX = 3;
+      this.bigLaser.render(context);
     } else {
       this.frameX = 0;
     }
@@ -241,18 +311,22 @@ class Boss {
       context.shadowOffsetX = 3;
       context.shadowOffsetY = 3;
       context.shadowColor = "black";
-      context.fillText(this.lives, this.x + this.width * 0.5, this.y + 50);
+      context.fillText(
+        Math.floor(this.lives),
+        this.x + this.width * 0.5,
+        this.y + 50
+      );
       context.restore();
     }
   }
 
   update() {
     this.speedY = 0;
-    if (this.spriteUpdate && this.lives > 0) this.frameX = 0;
+    if (this.spriteUpdate && this.lives >= 1) this.frameX = 0;
     if (this.y < 0) this.y += 4;
     if (
       this.x < 0 ||
-      (this.x > this.game.width - this.width && this.lives > 0)
+      (this.x > this.game.width - this.width && this.lives >= 1)
     ) {
       this.speedX *= -1;
       this.speedY = this.height * 0.5;
@@ -263,7 +337,8 @@ class Boss {
       if (
         this.game.checkCollision(this, projectile) &&
         !projectile.free &&
-        this.lives > 0
+        this.lives >= 1 &&
+        this.y >= 0
       ) {
         this.lives--;
         projectile.reset();
@@ -271,7 +346,7 @@ class Boss {
     });
 
     // collision detection boss/player
-    if (this.game.checkCollision(this, this.game.player) && this.lives > 0) {
+    if (this.game.checkCollision(this, this.game.player) && this.lives >= 1) {
       this.game.gameOver = true;
       this.lives = 0;
     }
@@ -293,7 +368,7 @@ class Boss {
 
   hit(damage) {
     this.lives -= damage;
-    if (this.lives > 0) this.frameX = 1;
+    if (this.lives >= 1) this.frameX = 1;
   }
 }
 class Wave {
@@ -409,6 +484,10 @@ class Game {
       projectile.update();
       projectile.draw(context);
     });
+
+    this.player.draw(context);
+    this.player.update();
+
     this.bossArray.forEach((boss) => {
       boss.draw(context);
       boss.update();
@@ -416,8 +495,6 @@ class Game {
     this.bossArray = this.bossArray.filter(
       (object) => !object.markedForDeletion
     );
-    this.player.draw(context);
-    this.player.update();
 
     this.waves.forEach((wave) => {
       wave.render(context);
