@@ -9,6 +9,7 @@ class Laser {
   render(context) {
     this.x =
       this.game.player.x + this.game.player.width * 0.5 - this.width * 0.5;
+    this.game.player.energy -= this.damage;
     context.save();
     context.fillStyle = "gold";
     context.fillRect(this.x, this.y, this.width, this.height);
@@ -45,7 +46,9 @@ class SmallLaser extends Laser {
     this.damage = 0.3;
   }
   render(context) {
-    super.render(context);
+    if (this.game.player.energy > 1 && !this.game.player.cooldown) {
+      super.render(context);
+    }
   }
 }
 
@@ -57,7 +60,9 @@ class BigLaser extends Laser {
   }
 
   render(context) {
-    super.render(context);
+    if (this.game.player.energy > 1 && !this.game.player.cooldown) {
+      super.render(context);
+    }
   }
 }
 class Player {
@@ -76,6 +81,9 @@ class Player {
     this.jetsFrame = 1;
     this.smallLaser = new SmallLaser(this.game);
     this.bigLaser = new BigLaser(this.game);
+    this.energy = 50;
+    this.maxEnergy = 100;
+    this.cooldown = false;
   }
 
   draw(context) {
@@ -116,6 +124,10 @@ class Player {
   }
 
   update() {
+    // recharging energy
+    if (this.energy < this.maxEnergy) this.energy += 0.05;
+    if (this.energy < 1) this.cooldown = true;
+    else if (this.energy > this.maxEnergy * 0.2) this.cooldown = false;
     // horizontal movement
     if (this.game.keys.indexOf("ArrowLeft") > -1) {
       this.x -= this.speed;
@@ -275,6 +287,138 @@ class RhinoMorph extends Enemy {
   }
 }
 
+class SquidMorph extends Enemy {
+  constructor(game, positionX, positionY) {
+    super(game, positionX, positionY);
+    this.image = document.getElementById("squidmorph");
+    this.frameX = 0;
+    this.frameY = Math.floor(Math.random() * 4);
+    this.maxFrame = 5;
+    this.lives = 4;
+    this.maxLives = this.lives;
+  }
+
+  hit(damage) {
+    this.lives -= damage;
+    if (this.lives >= 1) this.frameX = this.maxLives - Math.floor(this.lives);
+  }
+}
+
+class LobsterMorph extends Enemy {
+  constructor(game, positionX, positionY) {
+    super(game, positionX, positionY);
+    this.image = document.getElementById("squidmorph");
+    this.frameX = 0;
+    this.frameY = Math.floor(Math.random() * 4);
+    this.maxFrame = 14;
+    this.lives = 8;
+    this.maxLives = this.lives;
+  }
+
+  hit(damage) {
+    this.lives -= damage;
+    if (this.lives >= 1) this.frameX = this.maxLives - Math.floor(this.lives);
+  }
+}
+
+class EagleMorph extends Enemy {
+  constructor(game, positionX, positionY) {
+    super(game, positionX, positionY);
+    this.image = document.getElementById("eaglemorph");
+    this.frameX = 0;
+    this.frameY = Math.floor(Math.random() * 4);
+    this.maxFrame = 16;
+    this.lives = 4;
+    this.maxLives = this.lives;
+    this.shots = 0;
+  }
+
+  hit(damage) {
+    if (this.shots < 4) this.shoot();
+    this.lives -= damage;
+    this.frameX = this.maxLives - Math.floor(this.lives);
+    this.y += 3;
+  }
+
+  shoot() {
+    const projectile = this.game.getEnemyProjectile();
+    if (projectile) {
+      projectile.start(this.x + this.width * 0.5, this.y + this.height * 0.5);
+      this.shots++;
+    }
+  }
+}
+
+class EnemyProjectile {
+  constructor(game) {
+    this.game = game;
+    this.width = 50;
+    this.height = 35;
+    this.x = 0;
+    this.y = 0;
+    this.speed = Math.random() * 3 + 2;
+    this.free = true;
+    this.image = document.getElementById("enemyProjectile");
+    this.frameX = Math.floor(Math.random() * 4);
+    this.frameY = Math.floor(Math.random() * 2);
+    this.lives = 5;
+  }
+
+  draw(context) {
+    if (!this.free) {
+      context.drawImage(
+        this.image,
+        this.frameX * this.width,
+        this.frameY * this.height,
+        this.width,
+        this.height,
+        this.x,
+        this.y,
+        this.width,
+        this.height
+      );
+    }
+  }
+
+  update() {
+    if (!this.free) {
+      this.y += this.speed;
+      if (this.y > this.game.height) this.reset();
+      if (this.game.checkCollision(this, this.game.player)) {
+        this.reset();
+        this.game.player.lives--;
+        if (this.game.player.lives < 1) this.game.gameOver = true;
+      }
+      this.game.projectilesPool.forEach((projectile) => {
+        if (this.game.checkCollision(this, projectile) && !projectile.free) {
+          projectile.reset();
+          this.hit(1);
+          if (this.lives < 1) this.reset();
+        }
+      });
+    }
+  }
+
+  start(x, y) {
+    this.x = x - this.width * 0.5;
+    this.y = y;
+    this.free = false;
+    this.frameX = Math.floor(Math.random() * 4);
+    this.frameY = Math.floor(Math.random() * 2);
+    this.lives = 5;
+    this.speed = Math.random() * 3 + 2;
+  }
+
+  reset() {
+    this.free = true;
+  }
+
+  hit(damage) {
+    this.lives -= damage;
+    this.speed *= 0.6;
+  }
+}
+
 class Boss {
   constructor(game, bossLives) {
     this.game = game;
@@ -411,8 +555,15 @@ class Wave {
       for (let x = 0; x < this.game.columns; x++) {
         let enemyX = x * this.game.enemySize;
         let enemyY = y * this.game.enemySize;
-        if (Math.random() < 0.5) {
+        let randomNumber = Math.random();
+        if (randomNumber < 0.2) {
+          this.enemies.push(new SquidMorph(this.game, enemyX, enemyY));
+        } else if (randomNumber < 0.4) {
+          this.enemies.push(new EagleMorph(this.game, enemyX, enemyY));
+        } else if (randomNumber < 0.6) {
           this.enemies.push(new RhinoMorph(this.game, enemyX, enemyY));
+        } else if (randomNumber < 0.8) {
+          this.enemies.push(new LobsterMorph(this.game, enemyX, enemyY));
         } else {
           this.enemies.push(new BeetleMorph(this.game, enemyX, enemyY));
         }
@@ -441,6 +592,9 @@ class Game {
     this.waves = [];
     this.waves.push(new Wave(this));
     this.waveCount = 1;
+    this.enemyProjectilesPool = [];
+    this.numberOfEnemyProjectiles = 15;
+    this.createEnemyProjectiles();
 
     this.spriteUpdate = false;
     this.spriteTimer = 0;
@@ -484,7 +638,10 @@ class Game {
       projectile.update();
       projectile.draw(context);
     });
-
+    this.enemyProjectilesPool.forEach((projectile) => {
+      projectile.update();
+      projectile.draw(context);
+    });
     this.player.draw(context);
     this.player.update();
 
@@ -518,6 +675,20 @@ class Game {
     }
   }
 
+  // create enemy projectiles object pool
+  createEnemyProjectiles() {
+    for (let i = 0; i < this.numberOfEnemyProjectiles; i++) {
+      this.enemyProjectilesPool.push(new EnemyProjectile(this));
+    }
+  }
+
+  getEnemyProjectile() {
+    for (let i = 0; i < this.enemyProjectilesPool.length; i++) {
+      if (this.enemyProjectilesPool[i].free)
+        return this.enemyProjectilesPool[i];
+    }
+  }
+
   // check detection between two rectangles
   checkCollision(a, b) {
     return (
@@ -541,6 +712,16 @@ class Game {
     for (let i = 0; i < this.player.lives; i++) {
       context.fillRect(20 + 20 * i, 100, 10, 15);
     }
+
+    // energy
+    context.save();
+    this.player.cooldown
+      ? (context.fillStyle = "red")
+      : (context.fillStyle = "gold");
+    for (let i = 0; i < this.player.energy; i++) {
+      context.fillRect(20 + 2 * i, 130, 2, 15);
+    }
+    context.restore();
     if (this.gameOver) {
       context.textAlign = "center";
       context.font = "100px Impact";
@@ -585,8 +766,8 @@ class Game {
     this.waves = [];
     this.bossArray = [];
     this.bossLives = 10;
-    // this.waves.push(new Wave(this));
-    this.bossArray.push(new Boss(this, this.bossLives));
+    this.waves.push(new Wave(this));
+    // this.bossArray.push(new Boss(this, this.bossLives));
     this.waveCount = 1;
 
     this.score = 0;

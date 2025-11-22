@@ -7,6 +7,7 @@
     background: url('background.png')
 }
 
-#beetlemorph, #player, #player_jets, #rhinomorph {
+#beetlemorph, #lobstermorph, #player, #player_jets, #rhinomorph, 
+#squidmorph, #eaglemorph, #enemyProjectile, #boss, #boss8 {
     display: none
 }
