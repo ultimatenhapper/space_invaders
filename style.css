@@ -4,7 +4,7 @@
     top:50%;
     left: 50%;
     translate: -50% -50%;
-    background: url('background.png')
+    background: url('assets/background.png')
 }
 
 #beetlemorph, #lobstermorph, #player, #player_jets, #rhinomorph, 
